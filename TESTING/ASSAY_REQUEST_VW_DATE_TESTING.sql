@@ -1,0 +1,1 @@
+select * from ft_assay_request_vw where trunc(request_date) BETWEEN trunc(TO_date('08-01-2022', 'MM-DD-YYYY')) AND trunc(to_date('08-02-2022', 'MM-DD-YYYY')); --and batch_id = 'FT007578-05';

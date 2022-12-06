@@ -1,0 +1,20 @@
+SELECT *
+FROM
+(
+SELECT
+t1.group_id AS group_id,
+t3.property_name AS property_name,
+case when row_number() over (partition by t1.group_id, t2.property_value order by 1) = 1
+then t2.property_value end as property_value
+FROM ds3_userdata.su_well_samples t1
+JOIN ds3_userdata.su_well_sample_properties t2 on t2.well_sample_id = t1.id
+JOIN ds3_userdata.su_property_dictionary t3 on t2.property_dict_id = t3.id
+AND t3.dictionary_type = 'Well Sample'
+AND t3.property_name IN ('Treatment Conc (uM)', 'Treatment')
+)
+PIVOT(
+listagg(property_value, ', ') within group (order by property_value)
+FOR property_name IN('Treatment Conc (uM)' AS TREATMENT_CONC_UM, 'Treatment' AS TREATMENT)
+)
+
+;

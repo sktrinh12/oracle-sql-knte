@@ -1,0 +1,86 @@
+delete from ds3_userdata.biochem_ic50_flags;
+drop table ds3_userdata.biochem_ic50_flags;
+
+CREATE TABLE "DS3_USERDATA"."BIOCHEM_IC50_FLAGS" 
+   (	"PID" VARCHAR2(127 BYTE), 
+	"FLAG" NUMBER, 
+	"CHANGE_DATE" TIMESTAMP,
+    "USER_NAME" VARCHAR2(200 BYTE),
+	"COMMENT_TEXT" VARCHAR2(600 BYTE)
+   ) SEGMENT CREATION IMMEDIATE 
+  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 
+ NOCOMPRESS LOGGING
+  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
+  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1
+  BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)
+  TABLESPACE "DOTMATICS" ;
+
+
+INSERT INTO ds3_userdata.biochem_ic50_flags (PID, FLAG, CHANGE_DATE, USER_NAME, COMMENT_TEXT)
+SELECT
+            pid,
+            0 AS flag,
+            TO_TIMESTAMP( '01-JAN-2000 23:00:00', 'DD-MON-YYYY HH24:MI:SS') CHANGE_DATE,
+            'TESTADMIN' USER_NAME,
+            'ENTER COMMENT' COMMENT_TEXT
+        FROM
+            ds3_userdata.su_biochem_drc
+;
+       
+--select * from "DS3_USERDATA"."biochem_IC50_FLAGS";
+--select * from ds3_userdata.su_biochem_drc;        
+
+--select TO_TIMESTAMP('01-JAN-2000 23:00:00', 'DD-MON-YYYY HH24:MI:SS') CHANGE_DATE from dual;
+
+
+select * from biochem_ic50_flags;
+
+
+BEGIN
+  dbms_scheduler.drop_job(job_name => 'UPDATE_BIOCHEM_IC50_FLAGS');
+END;
+/
+BEGIN
+    DBMS_SCHEDULER.CREATE_JOB (
+       job_name             => 'UPDATE_BIOCHEM_IC50_FLAGS',
+       job_type             => 'PLSQL_BLOCK',
+             job_action           =>  'begin
+                                 INSERT INTO Ds3_userdata.BIOCHEM_IC50_FLAGS 
+                                (
+                                 PID, FLAG
+                                )
+                                SELECT       
+                                    t1.pid PID,   
+                                    0 FLAG,
+                                    TO_TIMESTAMP( ''01-JAN-2000 01:00:00'', ''DD-MON-YYYY HH24:MI:SS'') CREATED_DATE,
+                                    ''TESTADMIN'' USER_NAME,
+                                    ''ENTER COMMENT'' COMMENT_TEXT                                                                                                   
+                                FROM
+                                    ds3_userdata.SU_BIOCHEM_DRC T1
+                                    LEFT JOIN DS3_USERDATA.BIOCHEM_IC50_FLAGS T2 ON T1.pid = T2.pid
+                                    WHERE T2.pid IS NULL;
+                                 END;',
+       repeat_interval      => 'FREQ=DAILY;BYHOUR=1,4,6,8,10,12,14,16,18,20,22;BYMINUTE=0;BYSECOND=0',       
+       enabled              =>  TRUE,
+       comments             => 'Update biochem_ic50_flags Table for the flag and comment field');
+    END;
+/
+
+
+                                                
+
+SELECT DBMS_METADATA.get_ddl('PROCOBJ','UPDATE_BIOCHEM_IC50_FLAGS', 'DS3_USERDATA') AS job_def FROM dual;
+
+
+--EXEC DBMS_SCHEDULER.drop_job('UPDATE_BIOCHEM_IC50_FLAGS');
+
+select * from biochem_ic50_flags where PID = 'BIO-2022-10-14'
+;
+
+UPDATE DS3_USERDATA.BIOCHEM_IC50_FLAGS SET FLAG = 1,
+                             USER_NAME = 'SPENCER',
+                             CHANGE_DATE = '16-Nov-2022',
+                             COMMENT_TEXT = 'TESTING COMMENT 123'
+                         WHERE PID = ''
+;
+                         

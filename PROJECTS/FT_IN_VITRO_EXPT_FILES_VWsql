@@ -1,0 +1,117 @@
+
+SELECT
+    to_char(t0.experiment_id) AS experiment_id,
+    CASE
+    WHEN T3.BATCH_ID IS NULL THEN substr(t6.batch_id,0,8) ELSE SUBSTR(T3.BATCH_ID,0,8)  END compound_id,
+    case 
+    when t3.batch_id IS NULL then t6.batch_id ELSE t3.batch_id END               AS batch_id,
+--    substr(t3.batch_id,0,8) compound_id,
+    t2.cro                    AS cro,
+    t2.assay_type             AS assay_type,
+    t1.doc                    AS doc,
+    t1.file_name              AS filename,
+    t1.extension
+FROM
+      ds3_userdata.tm_experiments t0 
+    INNER JOIN ds3_userdata.tm_template_dict        t1 ON t0.experiment_id = t1.id 
+    INNER JOIN ds3_userdata.tm_protocol_props_pivot t2 ON t0.experiment_id = t2.experiment_id 
+    FULL JOIN ds3_userdata.ft_in_vitro_files t3 ON t0.experiment_id = t3.experiment_id 
+--    left join (select distinct batch_id, experiment_id from ds3_userdata.su_cellular_growth_drc) t5 ON t5.experiment_id = t0.experiment_id
+    left join (select distinct batch_id, experiment_id from ds3_userdata.su_cellular_combo) t6 ON t6.experiment_id = t0.experiment_id
+    
+WHERE
+    nvl(t0.deleted,'N') = 'N' 
+    AND t0.completed_date IS NOT NULL
+    AND t0.protocol_id in (541, 481) -- in_vitro_files_upload, SU cellular combo
+    and t2.assay_type in (SELECT prop_value FROM ds3_userdata.TM_PROTOCOL_PROP_LOOKUP WHERE PROP_TYPE = 'ASSAY_TYPE' and prop_group ='CELLULAR')
+    and t0.experiment_id = 211153
+    and t1.extension in ('pptx', 'xlsx')
+    ;
+    
+WITH 
+CTE1 AS (SELECT experiment_id, PROTOCOL_ID FROM ds3_userdata.tm_experiments 
+        WHERE nvl(deleted, 'N') = 'N' 
+            AND completed_date IS NOT NULL
+            AND protocol_id in (541, 481)),
+CTE2 AS (SELECT ID, DOC, FILE_NAME, EXTENSION FROM ds3_userdata.tm_template_dict 
+         WHERE EXTENSION in ('pptx', 'ppt', 'xlsx')
+         ),
+CTE3 AS (SELECT EXPERIMENT_ID, CRO, ASSAY_TYPE FROM tm_protocol_props_pivot
+        WHERE 
+            assay_type in 
+            (SELECT prop_value 
+            FROM ds3_userdata.TM_PROTOCOL_PROP_LOOKUP 
+            WHERE PROP_TYPE = 'ASSAY_TYPE' 
+            AND prop_group ='CELLULAR')),
+CTE4 AS (SELECT EXPERIMENT_ID, BATCH_ID FROM ft_in_vitro_files),
+CTE5 AS (select distinct batch_id, experiment_id from ds3_userdata.su_cellular_combo)
+
+SELECT CTE1.EXPERIMENT_ID, 
+CTE2.FILE_NAME, 
+CTE2.EXTENSION,
+CASE
+    WHEN CtE4.batch_id IS NULL then CTE5.BATCH_ID ELSE CtE4.batch_id 
+END batch_id,
+CTE3.CRO,
+CTE3.ASSAY_TYPE,
+CASE
+    WHEN CTE1.PROTOCOL_ID = 541 THEN 'FT_IN_VITRO_FILES'
+    WHEN CTE1.PROTOCOL_ID = 481 THEN 'COMBO'
+    ELSE 'NA'
+END SOURCE_TYPE
+FROM 
+CTE1 
+INNER JOIN CTE2
+ON CTE1.EXPERIMENT_ID = CTE2.ID
+INNER JOIN CTE3
+ON CTE1.EXPERIMENT_ID = CTE3.EXPERIMENT_ID
+LEFT JOIN CTE4
+ON CTE1.EXPERIMENT_ID = CTE4.EXPERIMENT_ID
+LEFT JOIN CTE5
+ON cte1.experiment_id = cte5.experiment_id
+;
+
+
+
+
+select * from FT_CELLULAR_FILES_VW --where experiment_id = 211153--198505
+;
+
+select * from FT_CELLULAR_FILES_VW where compound_id = 'FT002787';
+
+
+SELECT * FROM FT_IN_VITRO_FILES WHERE EXPERIMENT_ID = 211153
+;
+
+
+select * from ds3_userdata.tm_experiments;
+
+
+select * from ds3_userdata.tm_experiments t0
+inner join TM_TEMPLATE_DICT t1 
+on t0.experiment_id = t1.id
+INNER JOIN ds3_userdata.tm_protocol_props_pivot t2 ON t0.experiment_id = t2.experiment_id 
+where t0.experiment_id = 211153   ;
+
+
+select * from ds3_userdata.tm_protocol_props_pivot t0
+where experiment_id = 211153   ;
+
+
+select * from TM_TEMPLATE_DICT
+where id = 211193--211153   
+;
+
+
+select * from tm_conclusions
+where experiment_id = 205364
+;
+
+select * from su_samples t0
+inner join su_groupings t1 on t1.sample_id = t0.id
+where experiment_id = 211153
+;
+
+
+select distinct BATCH_ID, experiment_id from su_cellular_combo where experiment_id = 211153
+;

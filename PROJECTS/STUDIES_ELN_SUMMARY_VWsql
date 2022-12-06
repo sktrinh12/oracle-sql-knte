@@ -1,0 +1,51 @@
+-- ORACLE (+) optional table join
+SELECT
+     T1.PROTOCOL_ID AS PROTOCOL_ID
+    ,T1.EXPERIMENT_ID AS EXPERIMENT_ID
+    ,T1.CREATED_DATE AS CREATED_DATE
+    ,T1.COMPLETED_DATE AS COMPLETED_DATE
+    ,T1.ISID AS ISID
+    ,T1.DESCR AS DESCR
+    ,T1.EXPERIMENT_NAME AS EXPERIMENT_NAME
+    ,T2.PROTOCOL AS PROTOCOL
+    ,T1.BOOK AS BOOK_ID
+    ,T3.NICE_NAME AS NOTEBOOK_NAME
+    , case 
+when T1.COUNTERSIGNED_DATE is null and T1.COMPLETED_DATE is not null and t1.deleted is null then 'Awaiting Countersigning' 
+when  T1.COMPLETED_DATE is null and  t1.deleted is null then 'Open' 
+when T1.COUNTERSIGNED_DATE is not null and T1.COMPLETED_DATE is not null and t1.deleted is null then 'Countersigned' 
+when t1.deleted = 'Y' then 'Deleted'
+ end as STATUS
+  FROM
+     DS3_USERDATA.TM_EXPERIMENTS T1
+    ,DS3_USERDATA.TM_PROTOCOLS T2
+    ,ELN_NOTEBOOKS T3
+  WHERE
+        T1.PROTOCOL_ID = T2.PROTOCOL_ID
+        AND T1.BOOK = T3.BOOK(+)
+        ;
+        
+        
+-- ANSI-92 COMPLIANT
+        SELECT
+     T1.PROTOCOL_ID AS PROTOCOL_ID
+    ,T1.EXPERIMENT_ID AS EXPERIMENT_ID
+    ,T1.CREATED_DATE AS CREATED_DATE
+    ,T1.COMPLETED_DATE AS COMPLETED_DATE
+    ,T1.ISID AS ISID
+    ,T1.DESCR AS DESCR
+    ,T1.EXPERIMENT_NAME AS EXPERIMENT_NAME
+    ,T2.PROTOCOL AS PROTOCOL
+    ,T1.BOOK AS BOOK_ID
+    ,T3.NICE_NAME AS NOTEBOOK_NAME
+    , case 
+when T1.COUNTERSIGNED_DATE is null and T1.COMPLETED_DATE is not null and t1.deleted is null then 'Awaiting Countersigning' 
+when  T1.COMPLETED_DATE is null and  t1.deleted is null then 'Open' 
+when T1.COUNTERSIGNED_DATE is not null and T1.COMPLETED_DATE is not null and t1.deleted is null then 'Countersigned' 
+when t1.deleted = 'Y' then 'Deleted'
+ end as STATUS
+  FROM
+     DS3_USERDATA.TM_EXPERIMENTS T1
+     inner join DS3_USERDATA.TM_PROTOCOLS T2 on t1.protocol_id = t2.protocol_id
+     left join ELN_NOTEBOOKS T3 on t1.book = t3.book   
+        ;

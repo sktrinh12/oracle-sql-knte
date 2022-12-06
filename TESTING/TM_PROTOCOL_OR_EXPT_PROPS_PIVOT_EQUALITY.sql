@@ -1,0 +1,153 @@
+with 
+cte1 as (select 
+to_char(EXPERIMENT_ID) as EXPERIMENT_ID,
+max(decode(PROPERTY_NAME, 'Species',PROPERTY_VALUE)) SPECIES,
+max(decode(PROPERTY_NAME, 'CRO',PROPERTY_VALUE)) CRO,
+max(decode(PROPERTY_NAME, 'Project',PROPERTY_VALUE)) AS PROJECT,
+max(decode(PROPERTY_NAME, 'PO/Quote Number',PROPERTY_VALUE)) AS QUOTE_NUMBER,
+max(decode(PROPERTY_NAME, 'Assay Type',PROPERTY_VALUE)) AS ASSAY_TYPE,
+max(decode(PROPERTY_NAME, 'Assay Intent',PROPERTY_VALUE)) AS ASSAY_INTENT,
+max(decode(PROPERTY_NAME, 'Thiol-free',PROPERTY_VALUE)) AS THIOL_FREE,
+max(decode(PROPERTY_NAME, 'ATP Conc (uM)',PROPERTY_VALUE)) AS ATP_CONC_UM,
+max(decode(PROPERTY_NAME, '3D',PROPERTY_VALUE)) AS THREED,
+max(decode(PROPERTY_NAME, 'Donor',PROPERTY_VALUE)) AS DONOR,
+max(decode(PROPERTY_NAME, 'Acceptor',PROPERTY_VALUE)) AS ACCEPTOR,
+max(decode(PROPERTY_NAME, 'Batch ID',PROPERTY_VALUE)) AS BATCH_ID,
+max(decode(PROPERTY_NAME, 'Day 0 normalization',PROPERTY_VALUE)) AS DAY_0_NORMALIZATION
+from TM_PROT_EXP_FIELDS_VALUES group by EXPERIMENT_ID, PROTOCOL_ID),
+cte2 as (
+SELECT 
+    to_char(EXPERIMENT_ID) EXPERIMENT_ID,
+    SPECIES,
+    CRO,
+    PROJECT,
+    QUOTE_NUMBER,
+    ASSAY_TYPE,
+    ASSAY_INTENT,
+    THIOL_FREE,
+    ATP_CONC_UM,
+    THREE_D,
+    DONOR,
+    ACCEPTOR,
+    BATCH_ID,
+    DAY_O_NORMALIZATION
+FROM
+( SELECT T1.EXPERIMENT_ID, 
+T1.PROPERTY_NAME,
+T1.PROPERTY_VALUE,
+T1.PROTOCOL_ID
+FROM DS3_USERDATA.TM_PROT_EXP_FIELDS_VALUES T1
+--WHERE T1.PROTOCOL_ID IN (441, 501)
+--AND 
+--WHERE T1.PROPERTY_TYPE = 'SELECT'
+)
+pivot
+( MAX(property_value) FOR property_name IN
+(   
+    'Species' SPECIES,
+    'CRO' CRO,
+    'Project' PROJECT,
+    'PO/Quote Number' QUOTE_NUMBER,
+    'Assay Type' ASSAY_TYPE,
+    'Assay Intent' ASSAY_INTENT,
+    'Thiol-free' THIOL_FREE,
+    'ATP Conc (uM)' ATP_CONC_UM,
+    '3D' THREE_D,
+    'Donor' DONOR,
+    'Acceptor' ACCEPTOR,
+    'Batch ID' BATCH_ID,
+    'Day 0 normalization' DAY_O_NORMALIZATION
+))
+)
+-- check if tables are identical, expect count = 0
+SELECT count(*) COUNT_RESULT
+FROM (
+      (
+       SELECT * FROM cte1 
+        MINUS 
+       SELECT * FROM cte2
+      )
+       UNION
+      (
+       SELECT * FROM cte2 
+        MINUS 
+       SELECT * FROM cte1
+      )
+    )
+;
+
+
+
+
+
+
+-- OLD way
+select 
+to_char(EXPERIMENT_ID) as EXPERIMENT_ID,
+max(decode(PROPERTY_NAME, 'Species',PROPERTY_VALUE)) SPECIES,
+max(decode(PROPERTY_NAME, 'CRO',PROPERTY_VALUE)) CRO,
+max(decode(PROPERTY_NAME, 'Project',PROPERTY_VALUE)) AS PROJECT,
+max(decode(PROPERTY_NAME, 'PO/Quote Number',PROPERTY_VALUE)) AS QUOTE_NUMBER,
+max(decode(PROPERTY_NAME, 'Assay Type',PROPERTY_VALUE)) AS ASSAY_TYPE,
+max(decode(PROPERTY_NAME, 'Assay Intent',PROPERTY_VALUE)) AS ASSAY_INTENT,
+max(decode(PROPERTY_NAME, 'Thiol-free',PROPERTY_VALUE)) AS THIOL_FREE,
+max(decode(PROPERTY_NAME, 'ATP Conc (uM)',PROPERTY_VALUE)) AS ATP_CONC_UM,
+max(decode(PROPERTY_NAME, '3D',PROPERTY_VALUE)) AS THREE_D,
+max(decode(PROPERTY_NAME, 'Donor',PROPERTY_VALUE)) AS DONOR,
+max(decode(PROPERTY_NAME, 'Acceptor',PROPERTY_VALUE)) AS ACCEPTOR,
+max(decode(PROPERTY_NAME, 'Batch ID',PROPERTY_VALUE)) AS BATCH_ID,
+max(decode(PROPERTY_NAME, 'Day 0 normalization',PROPERTY_VALUE)) AS DAY_0_NORMALIZATION
+from TM_PROT_EXP_FIELDS_VALUES group by EXPERIMENT_ID, PROTOCOL_ID
+ORDER BY experiment_id
+;
+
+
+-- BETTER way 
+SELECT 
+    to_char(EXPERIMENT_ID) EXPERIMENT_ID,
+    SPECIES,
+    CRO,
+    PROJECT,
+    QUOTE_NUMBER,
+    ASSAY_TYPE,
+    ASSAY_INTENT,
+    THIOL_FREE,
+    ATP_CONC_UM,
+    THREE_D,
+    DONOR,
+    ACCEPTOR,
+    BATCH_ID,
+    DAY_O_NORMALIZATION
+FROM
+( SELECT T1.EXPERIMENT_ID,
+T1.PROPERTY_NAME,
+T1.PROPERTY_VALUE,
+T1.PROTOCOL_ID
+FROM DS3_USERDATA.TM_PROT_EXP_FIELDS_VALUES T1
+--WHERE T1.PROTOCOL_ID IN (441, 501)
+--AND 
+--WHERE T1.PROPERTY_TYPE IN ('SELECT', 'READONLY', 'TEXT', 'CHECKBOX')
+)
+pivot
+( MAX(property_value) FOR property_name IN
+(   
+    'Species' SPECIES,
+    'CRO' CRO,
+    'Project' PROJECT,
+    'PO/Quote Number' QUOTE_NUMBER,
+    'Assay Type' ASSAY_TYPE,
+    'Assay Intent' ASSAY_INTENT,
+    'Thiol-free' THIOL_FREE,
+    'ATP Conc (uM)' ATP_CONC_UM,
+    '3D' THREE_D,
+    'Donor' DONOR,
+    'Acceptor' ACCEPTOR,
+    'Batch ID' BATCH_ID,
+    'Day 0 normalization' DAY_O_NORMALIZATION
+))
+ORDER BY EXPERIMENT_ID;
+
+
+select distinct PROPERTY_TYPE from TM_PROT_EXP_FIELDS_VALUES;
+
+select count(*) from tm_experiments_props_pivot;
