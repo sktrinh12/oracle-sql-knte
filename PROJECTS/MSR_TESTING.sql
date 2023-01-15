@@ -136,7 +136,7 @@ row_number () over (
          order by created_date desc
        ) row_count,
 count(*) over (PARTITION BY compound_id) cnt
-from table(most_recent_ft_nbr('Pharmaron', 'HTRF', 'DBTRG-05MG', NULL, 1, 10))
+from table(most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'DBTRG-05MG',  1, 10))
 --WHERE CREATED_DATE > sysdate - 1000
 ORDER BY
     compound_id,
@@ -153,6 +153,38 @@ ORDER BY t1.row_count, t1.compound_id
 GROUP BY COMPOUND_ID
 ORDER BY COMPOUND_ID
 )
+;
+
+--better testing version that exlucdes IC50 < 10000
+select POWER(10, 2*STDDEV(DIFF_IC50)) MSR
+    FROM (
+        select COMPOUND_ID, SUM(IC50_LOG10 * case when row_count =1 then 1 else -1 end) DIFF_IC50
+        FROM (
+        SELECT otbl.COMPOUND_ID, otbl.ROW_COUNT, LOG(10, otbl.IC50) IC50_LOG10 FROM (
+            select t.* from (
+                select t1.PID, t1.COMPOUND_ID, t1.created_date, t2.ic50_nm, t2.ic50,
+                        row_number () over (
+                         partition by t1.compound_id
+                         order by t1.created_date desc
+                       ) row_count,
+                count(*) over (PARTITION BY t1.compound_id) cnt
+                from table(most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10)) t1
+                INNER JOIN ds3_userdata.su_cellular_growth_drc t2 
+                ON t1.PID = t2.PID
+                WHERE t2.ic50_nm < 10000
+                ORDER BY
+                    t1.compound_id,
+                    t1.created_date DESC
+                ) t
+        WHERE t.cnt >1
+        AND t.row_count <=2
+        FETCH NEXT 20*2 ROWS ONLY
+        ) otbl 
+       
+        )
+         GROUP BY COMPOUND_ID
+         ORDER BY COMPOUND_ID
+         )        
 ;
 
 
@@ -376,6 +408,24 @@ FROM
 
 select * from GEN_GEOMEAN_CURVE_TBL('210084', 20);
 
+select * from most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10);
+
+select calc_msr2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10, 20) MSR from dual;
+
+select * from GEN_GEOMEAN_CURVE_TBL(209788, 20); --36.3
+select * from GEN_GEOMEAN_CURVE_TBL(211260, 20); --2.71
+select * from GEN_GEOMEAN_CURVE_TBL(211259, 20); --2.52
+select * from GEN_GEOMEAN_CURVE_TBL(211258, 20); --2.45
+select * from GEN_GEOMEAN_CURVE_TBL(211257, 20); --26.4
+select * from GEN_GEOMEAN_CURVE_TBL(211256, 20); --36.3
+
+select PID, COMPOUND_ID, CRO, ASSAY_TYPE, CELL_LINE, VARIANT, CELL_INCUBATION_HR, PCT_SERUM from su_cellular_growth_drc where experiment_id = 209788;
+
+
+select PID, COMPOUND_ID, CRO, ASSAY_TYPE, CELL_LINE, VARIANT, CELL_INCUBATION_HR, PCT_SERUM from su_cellular_growth_drc where experiment_id = 210084;
+
+
+
 SELECT n FROM
 (SELECT LEVEL n FROM dual CONNECT BY LEVEL <=150)
 WHERE n >= 10
@@ -385,3 +435,64 @@ SELECT rownum*10 n
 FROM all_objects
 WHERE rownum <= 20
 ;
+
+
+select regexp_substr (
+    '{name} said: Hi my name is {name}, I am aged {age}, yes {age}!', 
+    '(^|[^{]){(\w+)}([^}]|$)',
+    1, 
+    1,
+    null,
+    2) regexp_result
+from dual
+;
+
+
+select regexp_replace (
+    '{name} said: Hi my name is {name}, I am aged {age}, yes {age}!',
+    '(^|[^{]){(\w+)}([^}]|$)', 
+    '\1'||'name'||
+    '\3', 1, 1)
+                
+from dual
+;
+
+declare 
+    type vararg is table of varchar2 (96) index by varchar2 (32);
+    
+    function format (template varchar2, args vararg) return varchar2 is
+        key varchar2 (32);
+        ret varchar2  (32767) := template;
+        pattern varchar2 (32) := '(^|[^{]){(\w+)}([^}]|$)';
+    begin
+        <<substitute>> loop
+            key := regexp_substr  (ret, pattern, 1, 1, null, 2);
+            exit substitute when key is null;
+            ret := regexp_replace (ret, pattern, 
+                '\1'||case when args.exists (key) then args (key) else '?'||key||'?' end||
+                '\3', 1, 1);
+            dbms_output.put_line ('ret: '||ret);   
+        end loop;
+        return replace (replace (ret, '{{','{'), '}}', '}');
+    end;
+begin
+    dbms_output.put_line ('output: '||format (q'[
+{name} said: Hi my name is {name}, I am aged {age}, yes {age}! 
+Missing key {somekey}; Replaced placeholders {{name}}, {{age}}. Again I am {age}]',
+        vararg ('name' => 'Jane', 
+                'age'  => '26')));
+end;
+/
+
+
+declare
+    v_template nvarchar2(500)  := q'[SELECT t_compound_id_type(pid, compound_id, created_date) bulk collect into v_compids FROM ( SELECT pid, compound_id, created_date FROM ds3_userdata.%s WHERE cro = v_cro AND assay_type = v_assay_type AND %s AND %s AND %s AND compound_id != 'BLANK' ORDER BY created_date DESC)]';
+    v_name     nvarchar2(50)   := 'Jane';
+    v_age      nvarchar2(50)   := '26';
+    v_dsname   nvarchar2(50) := 'su_biochem';
+    v_output   nvarchar2(1000) := utl_lms.format_message(v_template, v_name, v_age, v_dsname);
+begin
+    dbms_output.put_line('output: ' || v_output);
+end;
+/
+
