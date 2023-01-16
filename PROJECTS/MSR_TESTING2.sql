@@ -24,7 +24,8 @@ select t2.ic50_nm, t2.ic50
 --                count(*) over (PARTITION BY t1.compound_id) cnt
                 from table(most_recent_ft_nbrs2('Pharmaron', 'Caliper', 'target = ''MET''', 'ATP_CONC_UM = 100', 'cofactors is null', 'su_biochem_drc')) t1
 --                INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.TEST_SU_BIOCHEM_DRC_LESS_10000) t2 
-                INNER JOIN ds3_userdata.SU_TEST_BIOCHEM_DRC t2 
+--                INNER JOIN ds3_userdata.SU_TEST_BIOCHEM_DRC t2 
+                INNER JOIN (select PID, COMPOUND_ID, IC50_NM, IC50 from ds3_userdata.SU_BIOCHEM_DRC where VALIDATED != 'INVALIDATED') t2 
                 ON t1.PID = t2.PID
 --                WHERE to_number(regexp_substr(TRIM(t2.ic50_nm),'([[:digit:]])+')) < 10000
 --where t2.ic50 < 0.00001
@@ -34,9 +35,12 @@ select t2.ic50_nm, t2.ic50
                     t1.created_date DESC
                     ) ot
 --                   WHERE REGEXP_LIKE(ot.ic50_nm, '^(\d+)(?:\.(\d{1,2}))?$')
-where ot.IC50_NM < 10000
+where nvl(ot.IC50_NM, 10000) < 10000
 ;
 
+select PID, COMPOUND_ID, IC50_NM, IC50 from ds3_userdata.SU_BIOCHEM_DRC where IC50_NM IS NOT NULL;
+
+select count(*) from ds3_userdata.SU_BIOCHEM_DRC where IC50_NM IS NOT NULL;
 
 with test_case as (
     select '1' as num_field from dual 
@@ -125,12 +129,63 @@ select * from TEST_SU_BIOCHEM_DRC_LESS_10000 fetch next 10 rows only;
 
 BEGIN
    FOR c IN (SELECT PID, TO_NUMBER (IC50_NM) IC50_NM, TO_NUMBER(IC50) IC50
-               FROM su_biochem_drc)
+               FROM su_biochem_drc where NOT REGEXP_LIKE(ic50_nm, '[[:alpha:]]'))
    LOOP
+    BEGIN
+      savepoint s;
       insert into TEMP_SU_BIOCHEM_DRC_LESS_10000 values (c.pid, c.IC50_NM, c.IC50) ;
+      commit;
+   EXCEPTION
+     WHEN OTHERS THEN
+      rollback to savepoint s;
+   END;
    END LOOP;
-EXCEPTION
-   WHEN OTHERS
-   THEN
-      NULL;
 END;
+/
+
+select count(*) from temp_su_biochem_drc_less_10000;
+
+select count(*) from su_biochem_drc;
+
+select ot.PID, ot.IC50_NM from (
+select t1.PID, t1.IC50_NM, t1.IC50 from su_biochem_drc t1 -- this shows there are nulls for the ic50 values?
+left join TEMP_SU_BIOCHEM_DRC_LESS_10000 t2
+on t2.pid = t1.pid
+WHERE t2.pid IS NULL
+) ot
+ORDER BY IC50_NM
+;
+
+select PID, IC50_NM, IC50 from su_biochem_drc WHERE PID 
+IN (
+'BIO-15379-2',
+'BIO-15512-3',
+'BIO-15316-1',
+'BIO-15534-5',
+'BIO-15368-1',
+'BIO-15490-1',
+'BIO-15469-1',
+'BIO-15330-2',
+'BIO-15545-6',
+'BIO-15523-4',
+'BIO-15479-2',
+'BIO-15390-3',
+'BIO-15501-2',
+'BIO-15344-3');
+
+select * from su_biochem_drc where PID 
+IN (
+'BIO-15379-2',
+'BIO-15512-3',
+'BIO-15316-1',
+'BIO-15534-5',
+'BIO-15368-1',
+'BIO-15490-1',
+'BIO-15469-1',
+'BIO-15330-2',
+'BIO-15545-6',
+'BIO-15523-4',
+'BIO-15479-2',
+'BIO-15390-3',
+'BIO-15501-2',
+'BIO-15344-3');

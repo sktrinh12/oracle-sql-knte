@@ -206,7 +206,7 @@ as
                        ) row_count,
                 count(*) over (PARTITION BY t1.compound_id) cnt
                 from table(most_recent_ft_nbrs2('%s', '%s', '%s', '%s', '%s', '%s')) t1
-                INNER JOIN ds3_userdata.%s t2 
+                INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.%s WHERE VALIDATED != 'INVALIDATED') t2 
                 ON t1.PID = t2.PID
                 WHERE t2.IC50_NM < 10000
                 ORDER BY
@@ -262,7 +262,7 @@ BEGIN
     on t2.protocol_id = t1.protocol_id
     where t1.experiment_id  = i_experiment_id;
     IF regexp_count(v_dstype, 'BIO', 1, 'i') > 0 THEN
-      v_dsname := 'su_test_biochem_drc';
+      v_dsname := 'su_biochem_drc';
       v_stats_ds := 'su_biochem_drc_stats';
       v_param1_name := 'target';
       v_param2_name := 'atp_conc_um';
@@ -278,8 +278,6 @@ BEGIN
             nvl2(cofactor_1, cofactor_1, NULL)
             || nvl2(cofactor_2, ', ' || cofactor_2, NULL) cofactors, atp_conc_um]';
       v_param_names_subq := 'cofactor_1, cofactor_2, ' || v_param1_name || ',' || v_param2_name;
-    
---      v_param3_msr_fx_str :=
     ELSE
       v_dsname := 'su_cellular_growth_drc';
       v_stats_ds := 'su_cellular_drc_stats';
@@ -307,7 +305,7 @@ BEGIN
     IF v_param3 IS NULL THEN
      v_param3_msr_fx_str := '' || v_param3_name || ' IS NULL' || ''; 
     ELSE 
-     v_param3_msr_fx_str := '' || v_param3_name || '='|| v_param3 || '';
+     v_param3_msr_fx_str := '' || v_param3_name || '=' || '''''' || v_param3 || '''''';
     END IF;
     v_msr := calc_msr2(i_cro => v_cro, 
                        i_assay_type => v_assay_type, 
