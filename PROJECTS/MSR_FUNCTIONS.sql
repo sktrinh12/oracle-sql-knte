@@ -95,6 +95,7 @@ CREATE OR REPLACE FUNCTION most_recent_ft_nbrs2(i_cro VARCHAR2,
                                         i_param1 varchar2,                                         
                                         i_param2 varchar2, 
                                         i_param3 varchar2,
+                                        i_variant varchar2,
                                         i_dsname varchar2) 
                                         RETURN t_compound_id_type_table
 AS
@@ -117,6 +118,7 @@ AS
             AND %s 
             AND %s
             AND %s
+            AND variant %s
             AND compound_id != 'BLANK'
         ORDER BY
             created_date DESC
@@ -128,7 +130,7 @@ BEGIN
 --    ELSE
 --        v_dsname := i_dsname;
 --    END IF;
-    v_sqlquery := utl_lms.format_message(v_sqltemplate, i_dsname, i_cro, i_assay_type, i_param1, i_param2, i_param3);
+    v_sqlquery := utl_lms.format_message(v_sqltemplate, i_dsname, i_cro, i_assay_type, i_param1, i_param2, i_param3, i_variant);
     --dbms_output.put_line('query: ' || v_sqlquery);
     execute immediate v_sqlquery
     bulk collect into v_compids;
@@ -187,12 +189,14 @@ CREATE OR REPLACE FUNCTION calc_msr2(i_cro VARCHAR2,
                                      i_param1 varchar2, 
                                      i_param2 varchar2,
                                      i_param3 varchar2,
+                                     i_variant varchar2,
                                      i_dsname varchar2,
                                      i_nbr_cmpds number)
 return number
 as
   n_MSR NUMBER;
   v_sqlquery VARCHAR2(2000);
+  v_variant_str VARCHAR2(100);
   v_sqltemplate VARCHAR2(2000) := q'[select POWER(10, 2*STDDEV(DIFF_IC50))
     FROM (
         select COMPOUND_ID, SUM(IC50_LOG10 * case when row_count =1 then 1 else -1 end) DIFF_IC50
@@ -200,17 +204,14 @@ as
         SELECT otbl.COMPOUND_ID, otbl.ROW_COUNT, LOG(10, otbl.IC50) IC50_LOG10 FROM (
             select t.* from (
                 select t1.PID, t1.COMPOUND_ID, t1.created_date, t2.ic50_nm, t2.ic50,
-                        row_number () over (
-                         partition by t1.compound_id
+                        row_number () over ( partition by t1.compound_id
                          order by t1.created_date desc
                        ) row_count,
                 count(*) over (PARTITION BY t1.compound_id) cnt
-                from table(most_recent_ft_nbrs2('%s', '%s', '%s', '%s', '%s', '%s')) t1
+                from table(most_recent_ft_nbrs2('%s', '%s', '%s', '%s', '%s', '%s', '%s')) t1
                 INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.%s WHERE VALIDATED != 'INVALIDATED') t2 
                 ON t1.PID = t2.PID
-                WHERE t2.IC50_NM < 10000
-                ORDER BY
-                    t1.compound_id,
+                ORDER BY                    
                     t1.created_date DESC
                 ) t
         WHERE t.cnt >1
@@ -218,10 +219,9 @@ as
         FETCH NEXT %s *2 ROWS ONLY
         ) otbl )
          GROUP BY COMPOUND_ID
-         ORDER BY COMPOUND_ID
          )]';
 BEGIN
-    v_sqlquery := utl_lms.format_message(v_sqltemplate, i_cro, i_assay_type, i_param1, i_param2, i_param3, i_dsname, i_dsname, to_char(i_nbr_cmpds));
+    v_sqlquery := utl_lms.format_message(v_sqltemplate, i_cro, i_assay_type, i_param1, i_param2, i_param3, i_variant, i_dsname, i_dsname, to_char(i_nbr_cmpds));
     dbms_output.put_line('query: ' || v_sqlquery);
     execute immediate v_sqlquery
     into n_msr;
@@ -241,6 +241,7 @@ as
   v_param1 varchar2(300);
   v_param2 varchar2(300);
   v_param3 varchar2(300);
+  v_variant varchar2(300);
   v_param1_name varchar2(120);
   v_param2_name varchar2(120);
   v_param3_name varchar2(120);
@@ -249,11 +250,12 @@ as
   v_param_names varchar2(500);
   v_param_names_subq varchar2(500);
   v_param3_msr_fx_str varchar2(300);
+  v_variant_msr_fx_str varchar2(300);
   v_dstype VARCHAR2(50);
   v_dsname VARCHAR2(50);
   v_stats_ds VARCHAR2(50);
   v_sqlquery VARCHAR2(5000);
-  v_sqltemplate VARCHAR2(5000) := 'select cro, assay_type, %s, %s, %s
+  v_sqltemplate VARCHAR2(5000) := 'select cro, assay_type, %s, %s, %s, variant
     from ds3_userdata.%s where experiment_id = %s fetch next 1 rows only';
 BEGIN
     select t2.protocol into v_dstype 
@@ -295,23 +297,32 @@ BEGIN
     v_sqlquery := utl_lms.format_message(v_sqltemplate, v_param1_name, v_param2_name, v_param3_name, v_dsname, to_char(i_experiment_id));
 --    dbms_output.put_line('query: ' || v_sqlquery);
     execute immediate v_sqlquery
-    into v_cro, v_assay_type, v_param1, v_param2, v_param3;
+    into v_cro, v_assay_type, v_param1, v_param2, v_param3, v_variant;
     DBMS_OUTPUT.PUT_LINE('v_cro: ' || v_cro || CHR(10) || 
                          'v_assay_type: ' || v_assay_type || CHR(10) || 
                          'v_param1: ' || v_param1 || CHR(10) || 
                          'v_param2: ' || v_param2 || CHR(10) || 
-                         'v_param3: ' || v_param3 || CHR(10)
+                         'v_param3: ' || v_param3 || CHR(10) ||
+                         'v_variant: ' || v_variant
                     );
     IF v_param3 IS NULL THEN
      v_param3_msr_fx_str := '' || v_param3_name || ' IS NULL' || ''; 
     ELSE 
      v_param3_msr_fx_str := '' || v_param3_name || '=' || '''''' || v_param3 || '''''';
     END IF;
+
+    IF v_variant IS NULL THEN
+      v_variant_msr_fx_str := ' IS NULL'; 
+    ELSE
+     v_variant_msr_fx_str := '' || ' =' || '''''' || v_variant || '''''';
+    END IF;
+
     v_msr := calc_msr2(i_cro => v_cro, 
                        i_assay_type => v_assay_type, 
                        i_param1 => '' || v_param1_name || '=' || '''''' || v_param1 || '''''', 
                        i_param2 => '' || v_param2_name || '=' || v_param2 || '', 
-                       i_param3 => v_param3_msr_fx_str, 
+                       i_param3 => v_param3_msr_fx_str,
+                       i_variant => v_variant_msr_fx_str,
                        i_dsname => v_dsname, 
                        i_nbr_cmpds => i_nbr_cmpds);
     DBMS_OUTPUT.PUT_LINE('v_msr: ' || v_msr);

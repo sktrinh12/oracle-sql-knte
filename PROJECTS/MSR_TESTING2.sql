@@ -1,4 +1,13 @@
-select * from table(most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'cell_line = ''DBTRG-05MG''', 'cell_incubation_hr = 1', 'pct_serum = 10', 'su_cellular_growth_drc'));
+
+select t1.ASsay_type, t1.batch_id, t1.cell_incubation_hr, t1.cell_line, t1.compound_id, t1.created_date, t1.cro, t1.IC50_NM, t1.passage_number, t1.pct_serum  from su_cellular_growth_drc t1
+inner join (
+--select * from table(most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'cell_line = ''DBTRG-05MG''', 'cell_incubation_hr = 1', 'pct_serum = 10', 'su_cellular_growth_drc')) 
+select * from table(most_recent_ft_nbrs2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''Ba/F3''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'su_cellular_growth_drc'))
+) t2
+ON t1.pid = t2.pid 
+order by t1.compound_id, t1.CREATED_DATE DESC;
+
+select * from table(most_recent_ft_nbrs2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''Ba/F3''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'su_cellular_growth_drc'));
 
 
 select * from table(most_recent_ft_nbrs2('Pharmaron', 'Caliper', 'target = ''MET''', 'ATP_CONC_UM = 100', 'cofactors is null', 'su_test_biochem_drc'));
@@ -6,37 +15,65 @@ select * from table(most_recent_ft_nbrs2('Pharmaron', 'Caliper', 'target = ''MET
 
 select calc_msr2('Pharmaron', 'Caliper', 'target = ''''MET''''', 'ATP_CONC_UM = 100', 'cofactors is null', 'TEST_SU_BIOCHEM_DRC_LESS_10000', 20) MSR from dual;
 
-select calc_msr2('Pharmaron', 'Caliper', 'target = ''''MET''''', 'ATP_CONC_UM = 100', 'cofactors is null', 'SU_TEST_BIOCHEM_DRC', 20) MSR from dual;
+select calc_msr2('Pharmaron', 'Caliper', 'target = ''''MET''''', 'ATP_CONC_UM = 100', 'cofactors is null', 'SU_BIOCHEM_DRC', 20) MSR from dual;
 
 select calc_msr2('Pharmaron', 'HTRF', 'cell_line = ''''DBTRG-05MG''''', 'cell_incubation_hr = 1', 'pct_serum = 10', 'su_cellular_growth_drc', 20) MSR from dual;
-
+select calc_msr2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''''Ba/F3''''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'su_cellular_growth_drc', 20) MSR from dual;
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211215, 20);
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211253, 20) ;
 
+select power(10, DIFF_IC50) MSR from (
+ select COMPOUND_ID, SUM(IC50_LOG10 * case when row_count =1 then 1 else -1 end) DIFF_IC50
+        FROM (
+        SELECT otbl.COMPOUND_ID, otbl.created_date, otbl.ROW_COUNT, LOG(10, otbl.IC50) IC50_LOG10 FROM (
+            select t.* from (
+                select t1.PID, t1.COMPOUND_ID, t1.created_date, t2.ic50_nm, t2.ic50,
+                        row_number () over (
+                         partition by t1.compound_id
+                         order by t1.created_date desc
+                       ) row_count,
+                count(*) over (PARTITION BY t1.compound_id) cnt
+                from table(most_recent_ft_nbrs2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''Ba/F3''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'su_cellular_growth_drc')) t1
+                --'Pharmaron', 'HTRF', 'cell_line = ''DBTRG-05MG''', 'cell_incubation_hr = 1', 'pct_serum = 10', 'su_cellular_growth_drc')) t1
+                INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.su_cellular_growth_drc WHERE VALIDATED != 'INVALIDATED') t2 
+                ON t1.PID = t2.PID
+                WHERE t2.IC50_NM < 10000
+                ORDER BY                    
+                    t1.created_date DESC
+                    --t1.compound_id
+                ) t
+        WHERE t.cnt >1
+        AND t.row_count <=2
+        FETCH NEXT 20 *2 ROWS ONLY
+        ) otbl )
+         GROUP BY COMPOUND_ID
+         )
+         --ORDER BY COMPOUND_ID, created_date desc
+         ;
 
-select ot.*  from (
+
+select /*+ RESULT_CACHE */ ot.*  from (
 --select t1.PID, t1.COMPOUND_ID, t1.created_date, t2.ic50_nm, t2.ic50,
-select t2.ic50_nm, t2.ic50
---                        row_number () over (
---                         partition by t1.compound_id
---                         order by t1.created_date desc
---                       ) row_count,
---                count(*) over (PARTITION BY t1.compound_id) cnt
+select t2.ic50_nm, t2.ic50, t2.COMPOUND_ID, t1.created_date,
+                        row_number () over (
+                         partition by t1.compound_id
+                         order by t1.created_date desc
+                       ) row_count,
+                count(*) over (PARTITION BY t1.compound_id) cnt
                 from table(most_recent_ft_nbrs2('Pharmaron', 'Caliper', 'target = ''MET''', 'ATP_CONC_UM = 100', 'cofactors is null', 'su_biochem_drc')) t1
---                INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.TEST_SU_BIOCHEM_DRC_LESS_10000) t2 
---                INNER JOIN ds3_userdata.SU_TEST_BIOCHEM_DRC t2 
                 INNER JOIN (select PID, COMPOUND_ID, IC50_NM, IC50 from ds3_userdata.SU_BIOCHEM_DRC where VALIDATED != 'INVALIDATED') t2 
                 ON t1.PID = t2.PID
---                WHERE to_number(regexp_substr(TRIM(t2.ic50_nm),'([[:digit:]])+')) < 10000
---where t2.ic50 < 0.00001
---where t2.ic50_nm < 10000
                 ORDER BY
-                    t1.compound_id,
+                    --t1.compound_id,
                     t1.created_date DESC
                     ) ot
---                   WHERE REGEXP_LIKE(ot.ic50_nm, '^(\d+)(?:\.(\d{1,2}))?$')
-where nvl(ot.IC50_NM, 10000) < 10000
+where ot.IC50_NM < 10000
+and ot.cnt >1
+        AND ot.row_count <=2
+        --FETCH NEXT %s *2 ROWS ONLY
+        order by ot.created_date DESC, ot.compound_id
 ;
+
 
 select PID, COMPOUND_ID, IC50_NM, IC50 from ds3_userdata.SU_BIOCHEM_DRC where IC50_NM IS NOT NULL;
 

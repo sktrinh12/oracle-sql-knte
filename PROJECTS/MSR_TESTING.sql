@@ -107,7 +107,7 @@ row_number () over (
          order by created_date desc
        ) row_count,
 count(*) over (PARTITION BY compound_id) cnt
-from table(most_recent_ft_nbr('Pharmaron', 'HTRF', 'DBTRG-05MG', NULL, 1, 10))
+from table(most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'cell_line = ''DBTRG-05MG''', 'cell_incubation_hr =1', 'pct_serum=10', 'su_cellular_growth_drc'))
 --WHERE CREATED_DATE > sysdate - 1000
 ORDER BY
     compound_id,
@@ -408,9 +408,6 @@ FROM
 
 select * from GEN_GEOMEAN_CURVE_TBL('210084', 20);
 
-select * from most_recent_ft_nbrs2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10);
-
-select calc_msr2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10, 20) MSR from dual;
 
 select * from GEN_GEOMEAN_CURVE_TBL(209788, 20); --36.3
 select * from GEN_GEOMEAN_CURVE_TBL(211260, 20); --2.71
