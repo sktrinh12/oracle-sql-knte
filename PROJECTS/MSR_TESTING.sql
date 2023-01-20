@@ -192,8 +192,8 @@ select calc_msr('Pharmaron', 'HTRF', 'DBTRG-05MG', NULL, 1, 10, 30) MSR from dua
 select calc_msr2('Pharmaron', 'HTRF', 'DBTRG-05MG', 1, 10, 20) MSR from dual;
 select calc_msr2('Pharmaron', 'CellTiter-Glo', 'Ba/F3', 72, 10, 20) MSR from dual;
 
--- RUN CALC_MSR for each unique combination of cro|assay|cell|var|cell_incu|pct_serum
--- significantly slower (~25-30s) depends on how many rows
+-- RIGHT OUTER JOIN to just one call of the CALC_MSR
+-- quicker, ~10s
 SELECT
     t1.batch_id  AS batch_id,
     t1.graph     AS graph,
@@ -300,8 +300,8 @@ FROM
    ORDER BY t1.COMPOUND_ID, t1.CELL_LINE, t1.VARIANT
 ;
     
--- RIGHT OUTER JOIN to just one call of the CALC_MSR
--- quicker, ~10s
+-- RUN CALC_MSR for each unique combination of cro|assay|cell|var|cell_incu|pct_serum
+-- significantly slower (~25-30s) depends on how many rows
 SELECT
     t1.batch_id  AS batch_id,
     t1.graph     AS graph,
@@ -354,7 +354,7 @@ FROM
             variant,
             cell_incubation_hr,
             pct_serum,
-            CALC_MSR(t6.CRO, t7.ASSAY_TYPE, CELL_LINE, VARIANT, CELL_INCUBATION_HR, PCT_SERUM, 20) MSR
+            CALC_MSR2(t6.CRO, t7.ASSAY_TYPE, 'cell_line = ' || '''' || CELL_LINE || '''', NVL(VARIANT, '-'), CELL_INCUBATION_HR, PCT_SERUM, 20) MSR
         FROM
                  ds3_userdata.su_analysis_results t1
             INNER JOIN ds3_userdata.su_groupings            t2 ON t1.group_id = t2.id

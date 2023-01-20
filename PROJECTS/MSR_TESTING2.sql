@@ -22,10 +22,14 @@ select calc_msr2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''''Ba/F3''''', 'cel
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211215, 20);
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211253, 20) ;
 
-select power(10, DIFF_IC50) MSR from (
- select COMPOUND_ID, SUM(IC50_LOG10 * case when row_count =1 then 1 else -1 end) DIFF_IC50
+
+select * from su_cellular_growth_drc where compound_id = 'FT006718' and cell_line = 'Ba/F3' and variant = 'TPR-MET-wt' and assay_type = 'CellTiter-Glo' order by created_date desc;
+
+select power(10, 2*STDDEV(DIFF_IC50)) MSR from (
+select * from (
+ select COMPOUND_ID,created_date, ic50_log10, row_count, cnt, SUM(IC50_LOG10 * case when row_count =1 then 1 else -1 end) over (PARTITION by compound_id) DIFF_IC50
         FROM (
-        SELECT otbl.COMPOUND_ID, otbl.created_date, otbl.ROW_COUNT, LOG(10, otbl.IC50) IC50_LOG10 FROM (
+        SELECT otbl.COMPOUND_ID, otbl.created_date, otbl.ROW_COUNT, otbl.cnt, LOG(10, otbl.IC50) IC50_LOG10 FROM (
             select t.* from (
                 select t1.PID, t1.COMPOUND_ID, t1.created_date, t2.ic50_nm, t2.ic50,
                         row_number () over (
@@ -33,22 +37,20 @@ select power(10, DIFF_IC50) MSR from (
                          order by t1.created_date desc
                        ) row_count,
                 count(*) over (PARTITION BY t1.compound_id) cnt
-                from table(most_recent_ft_nbrs2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''Ba/F3''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'su_cellular_growth_drc')) t1
+                from table(most_recent_ft_nbrs2('Pharmaron', 'CellTiter-Glo', 'cell_line = ''Ba/F3''', 'cell_incubation_hr = 72', 'pct_serum = 10', 'variant = ''TPR-MET-wt''', 'su_cellular_growth_drc')) t1
                 --'Pharmaron', 'HTRF', 'cell_line = ''DBTRG-05MG''', 'cell_incubation_hr = 1', 'pct_serum = 10', 'su_cellular_growth_drc')) t1
                 INNER JOIN (select PID, IC50_NM, IC50 from ds3_userdata.su_cellular_growth_drc WHERE VALIDATED != 'INVALIDATED') t2 
                 ON t1.PID = t2.PID
-                WHERE t2.IC50_NM < 10000
-                ORDER BY                    
-                    t1.created_date DESC
-                    --t1.compound_id
                 ) t
         WHERE t.cnt >1
-        AND t.row_count <=2
-        FETCH NEXT 20 *2 ROWS ONLY
+        AND t.row_count <=2      
         ) otbl )
-         GROUP BY COMPOUND_ID
+
+         ) 
+         where row_count = 1
+         order by created_date desc
+         FETCH NEXT 20 ROWS ONLY
          )
-         --ORDER BY COMPOUND_ID, created_date desc
          ;
 
 
