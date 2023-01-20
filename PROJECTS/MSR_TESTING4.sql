@@ -42,18 +42,40 @@ FROM
     
     
 SELECT
-    calc_msr2('Pharmaron', 'Caliper', 'GSK3B', '100', '-', '-', 'su_biochem_drc', 20) msr
+    calc_msr('Pharmaron', 'Caliper', 'GSK3B', '100', '-', '-', 'su_biochem_drc', 20) msr
 FROM
     dual; -- 11.82
     
     
 SELECT
-    calc_msr2('Pharmaron', 'IMAP_Fluorescence Polarization', 'PDE4D', '-', '-', '-', 'su_biochem_drc', 20) msr
+    calc_msr('Pharmaron', 'IMAP_Fluorescence Polarization', 'PDE4D', '-', '-', '-', 'su_biochem_drc', 20) msr
 FROM
     dual; -- 4.68
     
     
-  select cro, assay_type, experiment_id, target, atp_conc_um, cofactors, variant from su_biochem_drc where cro = 'Pharmaron'   and experiment_id=209708;
+SELECT
+    calc_msr('ReactionBio', 'radiometric HotSpot', 'BRAF', '10', '-', '-', 'su_biochem_drc', 20) msr
+FROM
+    dual; -- 4.07
+    
+    
+SELECT
+    calc_msr('Pharmaron', 'Caliper', 'CDK9', '100', 'CCNT1', '-', 'su_biochem_drc', 20) msr
+FROM
+    dual; -- 3.247
+    
+    
+SELECT
+    calc_msr('Pharmaron', 'Caliper', 'MET', '100', '-', 'G1163R', 'su_biochem_drc', 20) msr
+FROM
+    dual; -- 9.97
+
+SELECT
+    calc_msr('Pharmaron', 'Caliper', 'CDK1', '100', 'CCNB1', '-', 'su_biochem_drc', 20) msr
+FROM
+    dual; -- 3.18    
+
+  select cro, assay_type, experiment_id, target, atp_conc_um, cofactors, variant from su_biochem_drc where experiment_id=209179;
   
   
   select cro, assay_type, experiment_id, cell_line, cell_incubation_hr, pct_serum, variant from su_cellular_growth_drc where cro = 'Pharmaron'  and cell_incubation_hr is null ;
@@ -72,7 +94,7 @@ select nvl2(NULL, 'test', NULL) ||nvl2('ok', ', ' || 'asdf', NULL) test from dua
 
 
 select 508/60 from dual; -- 8.46 mins to run biochem 
-
+-- 20 s to run cell
                   
          SELECT
             compound_id,

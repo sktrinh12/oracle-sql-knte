@@ -235,11 +235,11 @@ BEGIN
     t1.batch_id  ,
     t1.graph     ,
     t1.ic50_nm   ,
-    round(t2.geo_nm - t1.MSR, 2)
+    round(t2.geo_nm / t1.MSR, 2)
     || '<br />'
     || t2.geo_nm
     || '<br />'
-    || round(t2.geo_nm + t1.MSR, 2),
+    || round(t2.geo_nm * t1.MSR, 2),
     '-3 stdev: '
     || round(t2.nm_minus_3_stdev, 1)
     || '<br />'
