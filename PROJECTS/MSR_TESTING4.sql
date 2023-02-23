@@ -13,6 +13,12 @@ select * from table(get_msr_data2('Pharmaron', 'ADP-GLO', 'CDK12', '18', 'CCNK',
 -- cellular
 
 SELECT
+    calc_msr2('Pharmaron', 'HTRF', 'A-375', '1', '10', '-', 'su_cellular_growth_drc', 20) msr
+FROM
+    dual;
+
+
+SELECT
     calc_msr2('Pharmaron', 'CellTiter-Glo', 'Ba/F3', '72', '10', '-', 'su_cellular_growth_drc', 20) msr
 FROM
     dual; --1.17
@@ -116,7 +122,7 @@ select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211252, 20) ; --bio
 SELECT * from DS3_USERDATA.GEN_GEOMEAN_CURVE_TBL(211208, 20); --bio
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(211215, 20); --cell 
 select * from ds3_userdata.GEN_GEOMEAN_CURVE_TBL(210084, 20); --cell
-SELECT * from DS3_USERDATA.GEN_GEOMEAN_CURVE_TBL(211262, 20);
+SELECT * from DS3_USERDATA.GEN_GEOMEAN_CURVE_TBL(211262, 20); -- cell
 
 SELECT
     calc_msr2('Pharmaron', 'Caliper', 'GSK3B', '100', '-', '-', 'su_biochem_drc', 20) msr

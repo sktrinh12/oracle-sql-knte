@@ -19,7 +19,8 @@ CREATE OR REPLACE TYPE t_su_data_type AS OBJECT
   VARIANT VARCHAR2(250),
   PARAM1 VARCHAR2(250), -- cell_line or target
   PARAM2 VARCHAR2(250), -- atp_conc_um or cell_incubation_hr
-  PARAM3 VARCHAR2(250) -- cofactors or pct_serum
+  PARAM3 VARCHAR2(250), -- cofactors or pct_serum
+  FLAG NUMBER
 );
 /
 
@@ -133,10 +134,12 @@ AS
   v_variant VARCHAR2(200);
   v_sqlquery VARCHAR2(4000);
   v_sqltemplate VARCHAR2(4000);
-  v_sqltemplate_cell VARCHAR2(4000) := q'!SELECT t_su_data_type(
-    experiment_id, compound_id, project_name, cro, 
-    assay_type, created_date, ic50, ic50_nm, variant, cell_line, cell_incubation_hr, pct_serum)
-    FROM ( SELECT 
+  v_sqltemplate_cell VARCHAR2(4000) := q'!select t_su_data_type(experiment_id, compound_id, project_name, cro, 
+    assay_type, created_date, ic50, ic50_nm, variant, cell_line, cell_incubation_hr, pct_serum, flag) from (
+    SELECT it.experiment_id, it.compound_id, it.project_name, it.cro, 
+    it.assay_type, it.created_date, it.ic50, it.ic50_nm, it.variant, it.cell_line, it.cell_incubation_hr, it.pct_serum, nvl2(ot.flag, ot.flag, 0) flag
+    FROM ( SELECT
+    'CE'||'-'||T1.experiment_ID||'-'||T1.ID||'-'||T1.PROP1 pid,
     to_char(T1.EXPERIMENT_ID) EXPERIMENT_ID,
     substr(T1.ID, 1, 8) COMPOUND_ID,
     T4.PROJECT PROJECT_NAME,
@@ -162,7 +165,8 @@ AS
       AND nvl( t3.deleted, 'N') = 'N'
       AND t1.validated = 'VALIDATED'
       UNION ALL
-  SELECT        
+  SELECT
+        'SU'||'-'||T1.ID||'-'||t2.Plate_set PID,
       TO_CHAR(T4.EXPERIMENT_ID) experiment_id,
       SUBSTR(T3.DISPLAY_NAME, 1, 8)  COMPOUND_ID,
       T8.PROJECT PROJECT_NAME,
@@ -187,7 +191,8 @@ AS
           T4.COMPLETED_DATE IS NOT NULL
           AND T1.STATUS = 1
           AND nvl(T4.DELETED,'N')='N'
-      )
+      ) it
+      left outer join ds3_userdata.cellular_ic50_flags ot on it.pid = ot.pid
       WHERE
       compound_id != 'BLANK'
       AND cro = '{cro}'
@@ -196,13 +201,18 @@ AS
       AND {param1} 
       AND {param2} 
       AND {param3}
+       AND nvl2(ot.flag, ot.flag, 0) = 0
  ORDER BY
-      created_date DESC!';
+      created_date DESC)!';
 
- v_sqltemplate_bio VARCHAR2(4000) := q'!SELECT t_su_data_type(
-    experiment_id, compound_id, project_name, cro, 
-    assay_type, created_date, ic50, ic50_nm, variant, target, atp_conc_um, cofactors)
-    FROM ( SELECT 
+ v_sqltemplate_bio VARCHAR2(4000) := q'!select t_su_data_type(experiment_id, compound_id, project_name, cro, 
+    assay_type, created_date, ic50, ic50_nm, variant, target, atp_conc_um, cofactors, flag) from (
+    select experiment_id, compound_id, project_name, cro, 
+    assay_type, created_date, ic50, ic50_nm, variant, target, atp_conc_um, cofactors,
+    nvl2(ot.flag, ot.flag, 0) flag
+    FROM ( SELECT
+    'BIO'||'-'||EXTRACT(YEAR FROM CREATED_DATE)||'-'||t1.PROP1||'-'||ROW_NUMBER() 
+         OVER (PARTITION BY t1.PROP1 ORDER BY t1.PROP1) PID,
     to_char(T1.EXPERIMENT_ID) EXPERIMENT_ID,
     substr(T1.ID, 1, 8) COMPOUND_ID,
     T4.PROJECT PROJECT_NAME,
@@ -228,7 +238,8 @@ AS
       AND nvl( t3.deleted, 'N') = 'N'
       AND t1.validated = 'VALIDATED'
       UNION ALL
-  SELECT        
+  SELECT
+      'BIO'||'-'||T1.ID||'-'||t2.Plate_set PID,
       TO_CHAR(T4.EXPERIMENT_ID) experiment_id,
       SUBSTR(T3.DISPLAY_NAME, 1, 8)  COMPOUND_ID,
       T8.PROJECT PROJECT_NAME,
@@ -253,7 +264,8 @@ AS
           T4.COMPLETED_DATE IS NOT NULL
           AND T1.STATUS = 1
           AND nvl(T4.DELETED,'N')='N'
-      )
+      ) it
+      left outer join ds3_userdata.biochem_ic50_flags ot on it.pid = ot.pid
       WHERE
       compound_id != 'BLANK'
       AND cro = '{cro}'
@@ -262,8 +274,9 @@ AS
       AND {param1} 
       AND {param2} 
       AND {param3}
+      AND nvl2(ot.flag, ot.flag, 0) = 0
  ORDER BY
-      created_date DESC!';
+      created_date DESC)!';
 BEGIN
  IF regexp_count(i_dsname, 'CELL', 1, 'i') > 0 THEN
     v_param1_clause := 'cell_line = ''' || i_param1 || '''';  
@@ -502,7 +515,7 @@ BEGIN
             'n_cmpds' => i_nbr_cmpds
             )
     );
-    dbms_output.put_line('query: ' || v_sqlquery);
+    --dbms_output.put_line('query: ' || v_sqlquery);
     execute immediate v_sqlquery
     bulk collect into tbl_msr_data;
     IF sql%rowcount != i_nbr_cmpds THEN
@@ -585,7 +598,7 @@ BEGIN
             'n_cmpds' => i_nbr_cmpds
             )
     );
-    dbms_output.put_line('query: ' || v_sqlquery);
+    --dbms_output.put_line('query: ' || v_sqlquery);
     execute immediate v_sqlquery
     bulk collect into tbl_msr_data;
     RETURN tbl_msr_data;
@@ -767,13 +780,7 @@ BEGIN
     CASE WHEN t1.MSR = 0 THEN
       NULL ELSE
     round(t2.geo_nm * t1.MSR, 2) END,
-    '-3 stdev: '
-    || round(t2.nm_minus_3_stdev, 1)
-    || '<br />'
-    || '+3 stdev: '
-    || round(t2.nm_plus_3_stdev, 1)
-    || '<br />'
-    || 'n of m: '
+    'n of m: '
     || t2.n_of_m
     || '<br />'
     || 'MSR: '
@@ -781,7 +788,7 @@ BEGIN
             WHEN t1.MSR IS NULL THEN 'NaN' 
             ELSE to_char(t1.MSR) END
     || '<br />'
-    || '<a href="http://geomean.frontend.kinnate/get-data?type=msr_data&sql_type=get&{param1_name}='
+    || '<a href="http://msr-viz.kinnate/get-data?type=msr_data&sql_type=get&{param1_name}='
     || t1.{param1_name} 
     || '&{param2_name}=' 
     || CASE WHEN t1.{param2_name} = '-' THEN 'null' 
@@ -1006,7 +1013,7 @@ LOOP
     FETCH cv INTO v_cro, v_assay_type, v_param1, v_param2, v_param3, v_variant;
     EXIT WHEN cv%NOTFOUND;
     v_key := v_cro || '-' || v_assay_type ||'-'|| v_param1|| '-' || v_param2|| '-' || v_param3 || '-' || v_variant;
-    DBMS_OUTPUT.PUT_LINE(v_key);
+    --DBMS_OUTPUT.PUT_LINE(v_key);
     IF msr_dict.exists(v_key) THEN
         CONTINUE;
     ELSE
@@ -1043,7 +1050,7 @@ LOOP
     --DBMS_OUTPUT.PUT_LINE('calcd msr: ' || msr_dict(v_key));
 END LOOP;
 msr_dict('case') := v_case_stmt;
-DBMS_OUTPUT.PUT_LINE('case: ' || msr_dict('case'));
+--DBMS_OUTPUT.PUT_LINE('case: ' || msr_dict('case'));
 RETURN msr_dict;
 END;
 /
