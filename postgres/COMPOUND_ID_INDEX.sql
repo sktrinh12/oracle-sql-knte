@@ -1,0 +1,22 @@
+SELECT *
+FROM SU_BIOCHEM_DRC_STATS
+LIMIT 10;
+
+
+SELECT *
+FROM SU_BIOCHEM_DRC_STATS
+where compound_id = 'FT002787';
+
+CREATE INDEX compound_id_index ON SU_BIOCHEM_DRC_STATS (compound_id);
+
+
+
+SELECT *
+FROM SU_BIOCHEM_DRC_STATS
+where compound_id = 'FT007615';
+
+
+SELECT *
+FROM SU_BIOCHEM_DRC_STATS limit 5;
+
+select count(*) from SU_BIOCHEM_DRC_STATS;
